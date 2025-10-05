@@ -418,3 +418,84 @@ The CPU advances through the **fetch–decode–execute** cycle under clock cont
 **2) Program the ROM**
 - Right-click ROM → **Edit Contents…**
 - Enter hex at address 0000:  
+1D 2E 65 00 30 5F F0 00 00 00 00 00 23 19 00 00
+
+**3) Load Program to RAM (Bootloader Mode)**
+- Set `debug` HIGH (Code Loading Mode LED ON).
+- Pulse `clk` to copy ROM → RAM (two pulses per byte).
+- Observe MAR and bus on 7-segment displays.
+
+**4) Stop the Bootloader**
+- Set `debug` LOW.
+- Pulse `clk` once to safely end the loader.
+
+**5) Run**
+- Pulse `pc_reset` (PC = 0000).
+- Provide clock pulses (manual/continuous) to execute.
+- Monitor PC, MAR, IR, A, B through the cycle.
+
+**6) Execution Sequence**
+- LDA(13) → A  
+- LDB(14) → B  
+- JMP 5 → PC  
+- ADD → A ← A + B  
+- STA(15) → M[15] ← A  
+- HLT
+
+**7) Verify**
+- RAM\[15] = **0x3C (60)** (sum of 0x23 and 0x19).
+
+### SAP-1 CPU Execution (Automatic Mode)
+
+**After loading program/data into RAM**  
+![After loading RAM](images/fig19.png)  
+*Figure 19: Post-load state.*
+
+**After executing LDA 13**  
+![After LDA 13](images/fig20.png)  
+*Figure 20: Register A ← 35 (from address 13).*
+
+**After executing LDB 14**  
+![After LDB 14](images/fig21.png)  
+*Figure 21: Register B ← 25 (from address 14).*
+
+**After executing JMP 5**  
+![After JMP 5](images/fig22.png)  
+*Figure 22: PC updated to address 5.*
+
+**After executing STA 15**  
+![After STA 15](images/fig23.png)  
+*Figure 23: Result (60) written to RAM[15].*
+
+**After executing SUB (example)**  
+![After executing SUB](images/fig24.png)  
+*Figure 24: SUB result shown at the destination (demo view).*
+
+**After executing JMP (example)**  
+![After executing JMP](images/fig25.png)  
+*Figure 25: Jump instruction executed.*
+
+**After executing SHL (example)**  
+![After executing SHL](images/fig26.png)  
+*Figure 26: SHL output displayed.*
+
+**After executing SHL, SHR, ROL, ROR**  
+![After executing SHL,SHR,ROL,ROR](images/fig27.png)  
+*Figure 27: Results verified in RAM/output.*
+
+---
+
+## Future Improvement
+
+- **Status Flags**: introduce **Z** (Zero) and **C** (Carry) for conditional branches (e.g., JZ, JC).
+- **Memory & ISA**: larger address space, immediate forms, richer instruction formats.
+- **Microcoded Control**: scalable ISA expansion.
+- **Assembler Enhancements**: labels, expressions, richer directives.
+
+---
+
+## Conclusion
+
+This enhanced SAP-1 bridges classical CPU design with modern simulation-based education. With **dual modes**, an **extended ISA**, and a clear **control sequencer**, the system demonstrates technical correctness and pedagogical clarity. Verified programs confirm proper execution, timing, and control flow—providing a strong foundation for further study and extensions in VLSI and digital system design.
+
+---
