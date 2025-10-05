@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SAP-1 Assembler (Your Opcode Map)</title>
+<style>
+  :root { --bg:#0b1020; --panel:#141a2e; --ink:#e7ecff; --muted:#9fb0ff; --accent:#7aa2ff; }
+  html,body{height:100%} body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 system-ui,Segoe UI,Roboto,Helvetica,Arial}
+  .wrap{max-width:1100px;margin:24px auto;padding:0 16px}
+  .card{background:var(--panel);border-radius:16px;padding:20px;box-shadow:0 10px 35px rgba(0,0,0,.35)}
+  h1{margin:0 0 10px;font-size:28px}
+  .row{display:flex;gap:16px;flex-wrap:wrap}
+  textarea{flex:1;min-height:260px;width:100%;background:#0d1330;border:1px solid #243056;color:var(--ink);padding:12px;border-radius:12px;font-family:ui-monospace,Consolas,monospace}
+  .controls{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0}
+  button{background:var(--accent);color:#08122b;border:0;border-radius:12px;padding:10px 14px;font-weight:700;cursor:pointer}
+  button.secondary{background:#232d52;color:var(--ink);border:1px solid #34406b}
+  .out{white-space:pre-wrap;font-family:ui-monospace,Consolas,monospace;background:#0d1330;border:1px solid #243056;padding:12px;border-radius:12px}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .muted{color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <h1>SAP-1 Assembler</h1>
+    <div class="muted">
+      Compiles SAP-1 assembly into Logisim <b>v2.0 raw</b> HEX (16×8). Supports:
+      <code>LDA</code> <code>LDB</code> <code>ADD</code> <code>SUB</code> <code>STA</code> <code>JMP</code> <code>HLT</code> <code>SHL</code> <code>SHR</code> <code>ROL</code> <code>ROR</code>
+      + directives <code>ORG n</code>, <code>DEC n</code>. Comments start with <code>;</code>.
+    </div>
+
+    <div class="row" style="margin-top:10px">
+      <textarea id="src" spellcheck="false" placeholder="e.g.
+; Your map: JMP=0x6X, SHL=0x70, SHR=0x80, ROL=0x90, ROR=0xA0
+ORG 0
+LDA 12
+LDB 13
+JMP 5
+ORG 5
+ADD
+STA 15
+HLT
+
+ORG 12
+DEC 51
+ORG 13
+DEC 25"></textarea>
+    </div>
+
+    <div class="controls">
+      <button id="assemble">Assemble to HEX</button>
+      <button class="secondary" id="copy">Copy HEX</button>
+      <button class="secondary" id="download">Download .hex</button>
+      <button class="secondary" id="clear">Clear</button>
+    </div>
+
+    <div class="cols">
+      <div>
+        <div class="muted">Generated HEX:</div>
+        <div id="hexout" class="out">v2.0 raw
+</div>
+      </div>
+      <div>
+        <div class="muted">Memory Map (16×8):</div>
+        <div id="memtbl" class="out"></div>
+      </div>
+    </div>
+
+    <div style="margin-top:14px" class="muted">
+      <b>Opcode map (upper nibble):</b>
+      LDA <code>0x1X</code> • LDB <code>0x2X</code> • ADD <code>0x30</code> • SUB <code>0x40</code> • STA <code>0x5X</code> •
+      <b>JMP <code>0x6X</code></b> • SHL <code>0x70</code> • SHR <code>0x80</code> • ROL <code>0x90</code> • ROR <code>0xA0</code> • HLT <code>0xF0</code>
+    </div>
+  </div>
+</div>
+
+<script>
+function numParse(tok){
+  if(!tok) return NaN;
+  tok = tok.replace(/_/g,'').trim();
+  if(/^0x[0-9a-f]+$/i.test(tok)) return parseInt(tok,16);
+  if(/^[0-9a-f]+h$/i.test(tok)) return parseInt(tok.slice(0,-1),16);
+  if(/^0b[01]+$/i.test(tok)) return parseInt(tok.slice(2),2);
+  if(/^%[01]+$/i.test(tok))  return parseInt(tok.slice(1),2);
+  if(/^[0-9]+$/i.test(tok))  return parseInt(tok,10);
+  return NaN;
+}
+
+function assemble(src){
+  const mem = new Array(16).fill(0x00);
+  let pc = 0;
+  let errors = [];
+
+  function push(byte, lineNo){
+    if(pc<0||pc>15){ errors.push(`Line ${lineNo}: address out of range (pc=${pc})`); return; }
+    if(byte<0||byte>255||isNaN(byte)){ errors.push(`Line ${lineNo}: invalid byte (${byte})`); return; }
+    mem[pc] = byte & 0xFF;
+    pc = (pc + 1) & 0x0F;
+  }
+
+  const lines = src.split(/\r?\n/);
+  for(let i=0;i<lines.length;i++){
+    const raw = lines[i];
+    const line = raw.replace(/;.*/,'').trim();
+    if(!line) continue;
+    const toks = line.split(/[\s,]+/).filter(Boolean);
+    const op = toks[0].toUpperCase();
+    const arg = toks[1];
+
+    if(op==="ORG"){
+      const v = numParse(arg);
+      if(isNaN(v)||v<0||v>15){ errors.push(`Line ${i+1}: ORG needs 0..15`); continue; }
+      pc = v|0; continue;
+    }
+    if(op==="DEC"){
+      const v = numParse(arg);
+      if(isNaN(v)||v<0||v>255){ errors.push(`Line ${i+1}: DEC needs 0..255`); continue; }
+      push(v, i+1); continue;
+    }
+
+    const needAddr = (name)=>{
+      const v = numParse(arg);
+      if(isNaN(v)||v<0||v>15){ errors.push(`Line ${i+1}: ${name} needs 0..15`); return null; }
+      return v & 0x0F;
+    };
+
+    switch(op){
+      case "LDA": { const a=needAddr("LDA"); if(a==null) break; push(0x10|a, i+1); break; }
+      case "LDB": { const a=needAddr("LDB"); if(a==null) break; push(0x20|a, i+1); break; }
+      case "ADD": push(0x30, i+1); break;
+      case "SUB": push(0x40, i+1); break;
+      case "STA": { const a=needAddr("STA"); if(a==null) break; push(0x50|a, i+1); break; }
+      case "JMP": { const a=needAddr("JMP"); if(a==null) break; push(0x60|a, i+1); break; }
+      case "SHL": push(0x70, i+1); break;
+      case "SHR": push(0x80, i+1); break;
+      case "ROL": push(0x90, i+1); break;
+      case "ROR": push(0xA0, i+1); break;
+      case "HLT": push(0xF0, i+1); break;
+      default: errors.push(`Line ${i+1}: unknown opcode/directive: ${op}`);
+    }
+  }
+
+  const hex = "v2.0 raw\n" + mem.map(b=>b.toString(16).toUpperCase().padStart(2,"0")).join(" ");
+  return {hex, mem, errors};
+}
+
+function fmtMem(mem){
+  let s = "Addr  Hex  Dec\n";
+  for(let i=0;i<16;i++){
+    s += i.toString(16).toUpperCase().padStart(2,"0")+"    "+
+         mem[i].toString(16).toUpperCase().padStart(2,"0")+"   "+
+         mem[i].toString(10).padStart(3," ")+"\n";
+  }
+  return s;
+}
+
+const $ = id => document.getElementById(id);
+function assembleUI(){
+  const {hex, mem, errors} = assemble($("src").value);
+  $("hexout").textContent = (errors.length? errors.join("\n")+"\n\n" : "") + hex;
+  $("memtbl").textContent = fmtMem(mem);
+}
+$("assemble").onclick = assembleUI;
+$("copy").onclick = ()=>navigator.clipboard.writeText($("hexout").textContent);
+$("download").onclick = ()=>{
+  const {hex} = assemble($("src").value);
+  const blob = new Blob([hex+"\n"], {type:"text/plain"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "program.hex";
+  a.click();
+  URL.revokeObjectURL(a.href);
+};
+$("clear").onclick = ()=>{ $("src").value=""; $("hexout").textContent="v2.0 raw\n"; $("memtbl").textContent=""; };
+
+$("src").value = `ORG 0
+LDA 12
+LDB 13
+JMP 5
+ORG 5
+ADD
+STA 15
+HLT
+
+ORG 12
+DEC 51
+ORG 13
+DEC 25`;
+assembleUI();
+</script>
+</body>
+</html>
