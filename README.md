@@ -12,7 +12,7 @@
 
 ## 🎥 Video Tutorials
 
-▶️ **[Watch the SAP-1 Video Tutorial](https://www.youtube.com/watch?v=-9O5nkIznjI)**  
+▶️ **[Watch the SAP-1 Video Tutorial](https://youtu.be/lHXzSBnS1Mc)**  
 A complete walkthrough of the design, control sequencing, and program execution.
 
 ---
